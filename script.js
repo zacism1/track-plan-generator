@@ -19,6 +19,10 @@ const pageSelect = el("pageSelect");
 const textDump = el("textDump");
 const pdfStats = el("pdfStats");
 const pdfSelect = el("pdfSelect");
+const signalsPdf = el("signalsPdf");
+const trackPdf = el("trackPdf");
+const signalOverrides = el("signalOverrides");
+const mergedPreview = el("mergedPreview");
 
 let pdfExtract = null;
 
@@ -81,6 +85,34 @@ function parsePdfTextLines(items) {
       y,
       parts: parts.sort((a, b) => a.x - b.x).map((p) => p.str),
     }));
+}
+
+async function loadPdf(source) {
+  if (!window.pdfjsLib) throw new Error("PDF parser not loaded.");
+  if (window.pdfjsLib.GlobalWorkerOptions) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js";
+  }
+  if (source instanceof File) {
+    const buffer = await source.arrayBuffer();
+    return window.pdfjsLib.getDocument({ data: buffer }).promise;
+  }
+  return window.pdfjsLib.getDocument({ url: source }).promise;
+}
+
+async function extractLinesFromPdf(pdf) {
+  const allLines = [];
+  const linesByPage = [];
+  let totalItems = 0;
+  for (let i = 1; i <= pdf.numPages; i += 1) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    totalItems += content.items.length;
+    const lines = parsePdfTextLines(content.items);
+    allLines.push(...lines);
+    linesByPage.push(lines);
+  }
+  return { allLines, linesByPage, totalItems };
 }
 
 function parseMarkersFromLines(lines) {
@@ -148,30 +180,8 @@ async function importPdf() {
   }
 
   status.textContent = "Reading PDF…";
-  if (window.pdfjsLib.GlobalWorkerOptions) {
-    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js";
-  }
-
-  let pdf;
-  if (file) {
-    const buffer = await file.arrayBuffer();
-    pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
-  } else {
-    pdf = await window.pdfjsLib.getDocument({ url: selected }).promise;
-  }
-
-  const allLines = [];
-  const linesByPage = [];
-  let totalItems = 0;
-  for (let i = 1; i <= pdf.numPages; i += 1) {
-    const page = await pdf.getPage(i);
-    const content = await page.getTextContent();
-    totalItems += content.items.length;
-    const lines = parsePdfTextLines(content.items);
-    allLines.push(...lines);
-    linesByPage.push(lines);
-  }
+  const pdf = await loadPdf(file || selected);
+  const { allLines, linesByPage, totalItems } = await extractLinesFromPdf(pdf);
 
   const { title, items } = extractTitleAndItems(allLines);
   if (title) inputs.title.value = title;
@@ -195,6 +205,144 @@ async function importPdf() {
     ? `Imported ${markers.length} markers from PDF.`
     : "PDF imported, but no km markers detected.";
   render();
+}
+
+function isSignalToken(token) {
+  if (!token) return false;
+  if (token.includes(":")) return true;
+  if (/^\d{1,3}\.\d{1,3}/.test(token)) return false;
+  if (/^\d{1,3}km$/i.test(token)) return false;
+  return /^[A-Z]{2,}[A-Z0-9:-]*$/.test(token);
+}
+
+function extractSignalsFromLines(lines) {
+  const signals = [];
+  const tokens = [];
+  lines.forEach((line) => {
+    line.parts.forEach((part, idx) => {
+      const token = part.trim();
+      if (!isSignalToken(token)) return;
+      tokens.push({
+        name: token,
+        x: idx,
+        y: line.y,
+      });
+    });
+  });
+
+  if (!tokens.length) return [];
+  const ys = tokens.map((t) => t.y).sort((a, b) => a - b);
+  const median = ys[Math.floor(ys.length / 2)];
+
+  return tokens.map((t) => ({
+    name: t.name,
+    side: t.y >= median ? "east" : "west",
+    y: t.y,
+    x: t.x,
+  }));
+}
+
+function parseKmFromSignal(name) {
+  const match = name.match(/(\d{1,3})(?:\.\d+)?k/i);
+  if (match) return Number.parseFloat(match[1]);
+  return null;
+}
+
+function mergeSignalsWithChainage(signals, markers) {
+  const bySide = { east: [], west: [] };
+  markers.forEach((m) => {
+    const side = m.side === "top" ? "east" : m.side === "bottom" ? "west" : "east";
+    bySide[side].push(m);
+  });
+  bySide.east.sort((a, b) => a.km - b.km);
+  bySide.west.sort((a, b) => a.km - b.km);
+
+  const signalsBySide = { east: [], west: [] };
+  signals.forEach((s) => signalsBySide[s.side]?.push(s));
+  signalsBySide.east.sort((a, b) => a.x - b.x);
+  signalsBySide.west.sort((a, b) => a.x - b.x);
+
+  const merged = [];
+  ["east", "west"].forEach((side) => {
+    const signalList = signalsBySide[side];
+    const chainList = bySide[side];
+    const maxIndex = Math.max(signalList.length - 1, 1);
+    signalList.forEach((sig, idx) => {
+      let km = parseKmFromSignal(sig.name);
+      let confidence = 0.9;
+      if (km === null) {
+        const pos = Math.round((idx / maxIndex) * (chainList.length - 1));
+        km = chainList[pos]?.km ?? null;
+        confidence = 0.4;
+      } else if (chainList.length) {
+        const nearest = chainList.reduce((best, item) => {
+          if (!best) return item;
+          return Math.abs(item.km - km) < Math.abs(best.km - km) ? item : best;
+        }, null);
+        if (nearest) km = nearest.km;
+      }
+      merged.push({
+        name: sig.name,
+        side,
+        km,
+        confidence,
+      });
+    });
+  });
+
+  return merged;
+}
+
+function applyOverrides(signals, overridesText) {
+  const overrides = overridesText
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [name, side, kmRaw] = line.split(",").map((v) => v.trim());
+      const km = Number.parseFloat(kmRaw);
+      return { name, side, km: Number.isFinite(km) ? km : null };
+    });
+  if (!overrides.length) return signals;
+
+  return signals.map((sig) => {
+    const override = overrides.find(
+      (o) => o.name === sig.name && o.side === sig.side && o.km !== null
+    );
+    return override ? { ...sig, km: override.km, confidence: 1.0 } : sig;
+  });
+}
+
+async function buildTrackData() {
+  if (!signalsPdf.value || !trackPdf.value) {
+    status.textContent = "Select both PDFs in Admin Extractor.";
+    return;
+  }
+  status.textContent = "Building track data…";
+
+  const signalPdf = await loadPdf(signalsPdf.value);
+  const signalLines = await extractLinesFromPdf(signalPdf);
+  const signals = extractSignalsFromLines(signalLines.allLines);
+
+  const trackBook = await loadPdf(trackPdf.value);
+  const trackLines = await extractLinesFromPdf(trackBook);
+  const markers = parseMarkersFromLines(trackLines.allLines);
+
+  const mergedSignals = mergeSignalsWithChainage(signals, markers);
+  const withOverrides = applyOverrides(mergedSignals, signalOverrides.value);
+
+  const payload = {
+    meta: {
+      signalsPdf: signalsPdf.value,
+      trackPdf: trackPdf.value,
+      generatedAt: new Date().toISOString(),
+    },
+    signals: withOverrides,
+    markers,
+  };
+
+  mergedPreview.value = JSON.stringify(payload, null, 2);
+  status.textContent = `Merged ${withOverrides.length} signals with ${markers.length} track markers.`;
 }
 
 function updateDiagnostics() {
@@ -576,6 +724,13 @@ inputs.parser.addEventListener("change", () => {
   if (inputs.parser.value.trim()) {
     parseInputSentence(inputs.parser.value.trim());
   }
+});
+
+el("buildData").addEventListener("click", () => {
+  buildTrackData().catch((err) => {
+    console.error(err);
+    status.textContent = "Build failed. Check console.";
+  });
 });
 
 render();
