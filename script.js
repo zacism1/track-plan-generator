@@ -18,6 +18,7 @@ const status = el("status");
 const pageSelect = el("pageSelect");
 const textDump = el("textDump");
 const pdfStats = el("pdfStats");
+const pdfSelect = el("pdfSelect");
 
 let pdfExtract = null;
 
@@ -136,8 +137,9 @@ function extractTitleAndItems(lines) {
 
 async function importPdf() {
   const file = inputs.pdf.files[0];
-  if (!file) {
-    status.textContent = "Select a PDF to import.";
+  const selected = pdfSelect.value;
+  if (!file && !selected) {
+    status.textContent = "Select a built-in PDF or upload one.";
     return;
   }
   if (!window.pdfjsLib) {
@@ -146,8 +148,18 @@ async function importPdf() {
   }
 
   status.textContent = "Reading PDF…";
-  const buffer = await file.arrayBuffer();
-  const pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
+  if (window.pdfjsLib.GlobalWorkerOptions) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+      "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.js";
+  }
+
+  let pdf;
+  if (file) {
+    const buffer = await file.arrayBuffer();
+    pdf = await window.pdfjsLib.getDocument({ data: buffer }).promise;
+  } else {
+    pdf = await window.pdfjsLib.getDocument({ url: selected }).promise;
+  }
 
   const allLines = [];
   const linesByPage = [];
@@ -526,6 +538,12 @@ el("importPdf").addEventListener("click", () => {
     console.error(err);
     status.textContent = "PDF import failed. Check console.";
   });
+});
+
+pdfSelect.addEventListener("change", () => {
+  if (pdfSelect.value) {
+    inputs.pdf.value = "";
+  }
 });
 
 el("exportJson").addEventListener("click", () => {
