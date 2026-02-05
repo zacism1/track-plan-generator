@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Track Diagram Builder</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="page">
+    <header class="hero">
+      <div class="hero-title">
+        <div class="eyebrow">Track Book Visualizer</div>
+        <h1>Generate a track-section summary image from your inputs.</h1>
+      </div>
+      <div class="hero-meta">
+        <div class="pill">SVG + PNG export</div>
+        <div class="pill">Desktop + Mobile</div>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel">
+        <div class="panel-header">
+          <h2>Inputs</h2>
+          <div class="actions">
+            <button class="btn ghost" id="loadExample">Load Example</button>
+            <button class="btn" id="renderBtn">Render</button>
+          </div>
+        </div>
+
+        <div class="form">
+          <label class="field">
+            <span>Track Book PDF</span>
+            <input id="pdfInput" type="file" accept="application/pdf" />
+          </label>
+          <button class="btn ghost" id="importPdf">Import PDF</button>
+
+          <label class="field">
+            <span>Summary Title</span>
+            <input id="titleInput" type="text" value="47km Supersite Summary" />
+          </label>
+
+          <label class="field">
+            <span>Work Items (one per line)</span>
+            <textarea id="itemsInput" rows="6">Rerail 1000m through 47km supersite including new .
+Maintenance tamp through supersite extents.
+Remove and replace weigh bridge and WILD
+Video Imaging/Rail BAM/WCM disconnection and reconnection
+Test and commissioning for all asset protection & monitoring equipment</textarea>
+          </label>
+
+          <div class="field-row">
+            <label class="field">
+              <span>From Code</span>
+              <input id="fromInput" type="text" value="WAN:P11A" />
+            </label>
+            <label class="field">
+              <span>To Code</span>
+              <input id="toInput" type="text" value="WAS:P11B" />
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Segment Label</span>
+            <input id="segmentInput" type="text" value="47.00km Supersite" />
+          </label>
+
+          <div class="field-row">
+            <label class="field">
+              <span>Top Track Label</span>
+              <input id="topTrackInput" type="text" value="Up Main" />
+            </label>
+            <label class="field">
+              <span>Bottom Track Label</span>
+              <input id="bottomTrackInput" type="text" value="Down Main" />
+            </label>
+          </div>
+
+          <label class="field">
+            <span>Markers (csv: km,label,side,icon)</span>
+            <textarea id="markersInput" rows="8">37.689,MAS1,top,signal
+37.870,MAS4,top,signal
+39.40,Hot Bearing Detector,top,detector
+39.40,AEI Reader,top,detector
+42.301,42EN,top,signal
+42.294,42ES,top,signal
+47.00,Wheel Impact Load Detector,top,note
+47.00,Rail Bearing Acoustic Monitor,top,note
+47.00,Weighbridge,top,note
+47.00,Video Imaging System,top,note
+50.913,50EN,top,signal
+50.905,50ES,top,signal
+37.70,Bore Creek,mid,bridge
+50.00,AUX-456.87m,mid,bridge
+37.956,MAS6,bottom,signal
+37.60,MAS7,bottom,signal
+42.301,42WN,bottom,signal
+42.294,42WS,bottom,signal
+50.913,50WN,bottom,signal
+50.905,50WS,bottom,signal</textarea>
+          </label>
+
+          <label class="field">
+            <span>Parser Input (optional)</span>
+            <input id="parserInput" type="text" placeholder="rerail between WAN:P11A and WAS:P11B" />
+          </label>
+
+          <div class="field hint">
+            Use `side` = `top`, `bottom`, or `mid`. `icon` = `signal`, `detector`, `bridge`, or `note`.
+          </div>
+          <div class="field hint">
+            PDF import is best-effort: it will auto-fill markers based on detected `km` and nearby labels.
+          </div>
+        </div>
+
+        <div class="panel-header">
+          <h2>Diagnostics</h2>
+          <div class="actions">
+            <button class="btn ghost" id="exportJson">Export JSON</button>
+          </div>
+        </div>
+
+        <div class="form">
+          <label class="field">
+            <span>PDF Page</span>
+            <select id="pageSelect"></select>
+          </label>
+          <label class="field">
+            <span>Extracted Text Preview</span>
+            <textarea id="textDump" rows="6" readonly></textarea>
+          </label>
+          <div class="field hint" id="pdfStats">Load a PDF to see extraction stats.</div>
+        </div>
+
+        <div class="panel-footer">
+          <button class="btn" id="downloadPng">Download PNG</button>
+          <button class="btn ghost" id="downloadSvg">Download SVG</button>
+        </div>
+      </section>
+
+      <section class="preview">
+        <div class="preview-header">
+          <h2>Preview</h2>
+          <div class="status" id="status">Ready</div>
+        </div>
+        <div class="canvas" id="svgHost"></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.js" crossorigin="anonymous"></script>
+  <script src="script.js"></script>
+</body>
+</html>
