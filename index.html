@@ -141,6 +141,38 @@ Test and commissioning for all asset protection & monitoring equipment</textarea
           <div class="field hint" id="pdfStats">Load a PDF to see extraction stats.</div>
         </div>
 
+        <div class="panel-header">
+          <h2>Admin Extractor</h2>
+          <div class="actions">
+            <button class="btn ghost" id="buildData">Build Track Data</button>
+          </div>
+        </div>
+
+        <div class="form">
+          <label class="field">
+            <span>Signals PDF (Mimic map)</span>
+            <select id="signalsPdf">
+              <option value="">Choose a PDF</option>
+              <option value="Mimic map PDF version.pdf">Mimic map PDF version</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Track Book PDF (Chainage + Crossings)</span>
+            <select id="trackPdf">
+              <option value="">Choose a PDF</option>
+              <option value="Track Book_DESD-071-G-00001_17.pdf">Track Book_DESD-071-G-00001_17</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Signal Overrides (csv: name,side,km)</span>
+            <textarea id="signalOverrides" rows="6" placeholder="WAN:P11A,east,37.689"></textarea>
+          </label>
+          <label class="field">
+            <span>Merged JSON Preview</span>
+            <textarea id="mergedPreview" rows="8" readonly></textarea>
+          </label>
+        </div>
+
         <div class="panel-footer">
           <button class="btn" id="downloadPng">Download PNG</button>
           <button class="btn ghost" id="downloadSvg">Download SVG</button>
