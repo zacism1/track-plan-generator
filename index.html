@@ -31,7 +31,15 @@
 
         <div class="form">
           <label class="field">
-            <span>Track Book PDF</span>
+            <span>Built-in PDF</span>
+            <select id="pdfSelect">
+              <option value="">Choose a PDF</option>
+              <option value="Mimic map PDF version.pdf">Mimic map PDF version</option>
+              <option value="Track Book_DESD-071-G-00001_17.pdf">Track Book_DESD-071-G-00001_17</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Or Upload a PDF</span>
             <input id="pdfInput" type="file" accept="application/pdf" />
           </label>
           <button class="btn ghost" id="importPdf">Import PDF</button>
